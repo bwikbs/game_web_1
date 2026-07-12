@@ -47,6 +47,7 @@ export class Player {
           this.world.ensureData(x >> 4, z >> 4);
           const h = this.world.terrainHeight(x, z);
           if (h <= WATER_LEVEL) continue;
+          if (!this.world.isSolid(x, h, z)) continue; // 동굴로 뚫린 표면 제외
           if (this.world.getBlock(x, h + 1, z) !== BLOCK.AIR ||
               this.world.getBlock(x, h + 2, z) !== BLOCK.AIR ||
               this.world.getBlock(x, h + 3, z) !== BLOCK.AIR) continue;

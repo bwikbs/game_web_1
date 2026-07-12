@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BLOCK, BLOCK_DEFS, atlasTexture, tileUV } from './blocks.js';
-import { createNoise2D, fbm, hash2 } from './noise.js';
+import { createNoise2D, createNoise3D, fbm, hash2 } from './noise.js';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -40,6 +40,8 @@ export class World {
     this.edits = new Map();    // "cx,cz" -> Map("lx,y,lz" -> id) : 사용자 수정 내역
     this.editsChanged = false;
     this.noise = createNoise2D(seed);
+    this.caveNoiseA = createNoise3D(seed + 101);
+    this.caveNoiseB = createNoise3D(seed + 202);
     this.heightCache = new Map();
 
     this.matSolid = new THREE.MeshBasicMaterial({
@@ -84,6 +86,15 @@ export class World {
             id = BLOCK.STONE;
           }
           data[idx(lx, y, lz)] = id;
+        }
+        // 동굴 굴착: 두 3D 노이즈가 모두 0 근처인 곳 = 터널
+        // (물가 기둥은 호수 바닥이 뚫리지 않게 표면 근처 보호)
+        const capY = sandy ? h - 6 : h;
+        for (let y = 3; y <= capY; y++) {
+          const nA = this.caveNoiseA(gx / 35, y / 22, gz / 35);
+          if (Math.abs(nA) >= 0.09) continue;
+          const nB = this.caveNoiseB(gx / 35, y / 22, gz / 35);
+          if (Math.abs(nB) < 0.09) data[idx(lx, y, lz)] = BLOCK.AIR;
         }
         for (let y = h + 1; y <= WATER_LEVEL; y++) {
           data[idx(lx, y, lz)] = BLOCK.WATER;
