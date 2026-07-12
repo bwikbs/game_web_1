@@ -127,8 +127,8 @@ export class Player {
     // 입력 → 이동 방향 (yaw 기준)
     let fx = 0, fz = 0;
     if (this.enabled) {
-      if (this.keys.has('KeyW')) fz -= 1;
-      if (this.keys.has('KeyS')) fz += 1;
+      if (this.keys.has('KeyW')) fz += 1;
+      if (this.keys.has('KeyS')) fz -= 1;
       if (this.keys.has('KeyA')) fx -= 1;
       if (this.keys.has('KeyD')) fx += 1;
     }
