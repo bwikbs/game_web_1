@@ -3,6 +3,7 @@ import { World } from './world.js';
 import { Player } from './player.js';
 import { BLOCK, BLOCK_DEFS, tileIconURL } from './blocks.js';
 import { loadSave, writeSave, clearSave } from './storage.js';
+import { Sky } from './sky.js';
 
 const REACH = 6;
 const RADIUS = 5;
@@ -32,8 +33,11 @@ window.addEventListener('resize', () => {
 const world = new World(scene);
 const player = new Player(camera, world);
 
+const sky = new Sky(scene);
+
 // 세이브 복원 또는 신규 스폰
 const save = loadSave();
+if (typeof save?.time === 'number') sky.time = save.time;
 if (save?.edits) world.loadEdits(save.edits);
 if (save?.player) {
   const p = save.player;
@@ -103,6 +107,7 @@ function persist() {
       yaw: player.yaw, pitch: player.pitch,
     },
     hotbar: hotbarIdx,
+    time: sky.time,
   });
   world.editsChanged = false;
 }
@@ -154,7 +159,7 @@ const fpsEl = document.getElementById('fps');
 let frames = 0, fpsTimer = 0;
 
 // ── 게임 루프 ────────────────────────────────────────────
-window.__game = { world, player, camera };
+window.__game = { world, player, camera, sky };
 
 const clock = new THREE.Clock();
 function loop() {
@@ -163,6 +168,10 @@ function loop() {
 
   player.update(dt);
   world.update(player.pos.x, player.pos.z, RADIUS);
+
+  const brightness = sky.update(dt, camera);
+  world.matSolid.color.setScalar(brightness);
+  world.matTrans.color.setScalar(brightness);
 
   const hit = getTarget();
   if (hit) {
