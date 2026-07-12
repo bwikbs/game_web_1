@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server.js"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,7 @@
   "homepage": "https://github.com/bwikbs/game_web_1#readme",
   "dependencies": {
     "three": "^0.185.1",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "ws": "^8.21.0"
   }
 }
