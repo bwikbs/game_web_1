@@ -5,6 +5,7 @@ import { BLOCK, BLOCK_DEFS, tileIconURL } from './blocks.js';
 import { loadSave, writeSave, clearSave } from './storage.js';
 import { Sky } from './sky.js';
 import { sfx } from './audio.js';
+import { Net } from './net.js';
 
 const REACH = 6;
 const RADIUS = 5;
@@ -147,25 +148,32 @@ document.addEventListener('mousedown', (e) => {
   if (!hit) return;
   if (e.button === 0) {
     world.setBlock(hit.x, hit.y, hit.z, BLOCK.AIR);
+    net.sendBlock(hit.x, hit.y, hit.z, BLOCK.AIR);
     sfx.break();
   } else if (e.button === 2) {
     const bx = hit.x + hit.nx, by = hit.y + hit.ny, bz = hit.z + hit.nz;
     const cur = world.getBlock(bx, by, bz);
     if ((cur === BLOCK.AIR || cur === BLOCK.WATER) && !player.intersectsBlock(bx, by, bz)) {
       world.setBlock(bx, by, bz, HOTBAR[hotbarIdx]);
+      net.sendBlock(bx, by, bz, HOTBAR[hotbarIdx]);
       sfx.place();
     }
   }
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
+// ── 멀티플레이 ───────────────────────────────────────────
+const net = new Net(scene, world, player);
+net.connect();
+
 // ── HUD ──────────────────────────────────────────────────
 const posEl = document.getElementById('pos');
 const fpsEl = document.getElementById('fps');
+const onlineEl = document.getElementById('online');
 let frames = 0, fpsTimer = 0;
 
 // ── 게임 루프 ────────────────────────────────────────────
-window.__game = { world, player, camera, sky, sfx };
+window.__game = { world, player, camera, sky, sfx, net };
 
 // 발소리/착지/입수 사운드 상태
 const prevPos = player.pos.clone();
@@ -196,6 +204,7 @@ function loop() {
 
   player.update(dt);
   updateSfx();
+  net.update(dt);
   world.update(player.pos.x, player.pos.z, RADIUS);
 
   const brightness = sky.update(dt, camera);
@@ -218,6 +227,7 @@ function loop() {
   }
   posEl.textContent =
     `x ${player.pos.x.toFixed(1)}  y ${player.pos.y.toFixed(1)}  z ${player.pos.z.toFixed(1)}`;
+  onlineEl.textContent = net.connected ? `👥 ${net.count}명 접속 중` : '';
 
   renderer.render(scene, camera);
 }
