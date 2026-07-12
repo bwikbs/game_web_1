@@ -1,0 +1,27 @@
+{
+  "name": "game_web_1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bwikbs/game_web_1.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/bwikbs/game_web_1/issues"
+  },
+  "homepage": "https://github.com/bwikbs/game_web_1#readme",
+  "dependencies": {
+    "three": "^0.185.1",
+    "vite": "^8.1.4"
+  }
+}
