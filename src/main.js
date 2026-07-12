@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { BLOCK, BLOCK_DEFS, tileIconURL } from './blocks.js';
+import { loadSave, writeSave, clearSave } from './storage.js';
 
 const REACH = 6;
 const RADIUS = 5;
@@ -31,11 +32,22 @@ window.addEventListener('resize', () => {
 const world = new World(scene);
 const player = new Player(camera, world);
 
-// 초기 스폰 지역은 동기 생성 (낙하 방지)
+// 세이브 복원 또는 신규 스폰
+const save = loadSave();
+if (save?.edits) world.loadEdits(save.edits);
+if (save?.player) {
+  const p = save.player;
+  player.pos.set(p.x, p.y, p.z);
+  player.yaw = p.yaw;
+  player.pitch = p.pitch;
+} else {
+  player.spawn();
+}
+// 시작 지역은 동기 생성 (낙하 방지)
+const scx = Math.floor(player.pos.x) >> 4, scz = Math.floor(player.pos.z) >> 4;
 for (let dz = -1; dz <= 1; dz++)
   for (let dx = -1; dx <= 1; dx++)
-    world.buildChunkMesh(dx, dz);
-player.spawn();
+    world.buildChunkMesh(scx + dx, scz + dz);
 
 // ── 블록 하이라이트 ──────────────────────────────────────
 const highlight = new THREE.LineSegments(
@@ -72,7 +84,7 @@ function selectHotbar(i) {
   clearTimeout(selectHotbar._t);
   selectHotbar._t = setTimeout(() => (blockNameEl.style.opacity = 0), 1200);
 }
-selectHotbar(0);
+selectHotbar(save?.hotbar ?? 0);
 
 document.addEventListener('keydown', (e) => {
   const n = parseInt(e.key);
@@ -82,9 +94,32 @@ document.addEventListener('wheel', (e) => {
   if (player.enabled) selectHotbar(hotbarIdx + Math.sign(e.deltaY));
 });
 
+// ── 자동 저장 ────────────────────────────────────────────
+function persist() {
+  writeSave({
+    edits: world.exportEdits(),
+    player: {
+      x: player.pos.x, y: player.pos.y, z: player.pos.z,
+      yaw: player.yaw, pitch: player.pitch,
+    },
+    hotbar: hotbarIdx,
+  });
+  world.editsChanged = false;
+}
+setInterval(persist, 5000);
+window.addEventListener('beforeunload', persist);
+
 // ── 포인터락 / 오버레이 ─────────────────────────────────
 const overlay = document.getElementById('overlay');
 overlay.addEventListener('click', () => renderer.domElement.requestPointerLock());
+document.getElementById('new-game').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (confirm('저장된 월드를 삭제하고 새로 시작할까요?')) {
+    window.removeEventListener('beforeunload', persist);
+    clearSave();
+    location.reload();
+  }
+});
 document.addEventListener('pointerlockchange', () => {
   player.enabled = document.pointerLockElement === renderer.domElement;
   overlay.style.display = player.enabled ? 'none' : 'flex';

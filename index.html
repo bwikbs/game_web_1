@@ -80,6 +80,12 @@
       font: bold 18px sans-serif;
       box-shadow: 0 4px 0 #2a5d1e;
     }
+    #new-game {
+      margin-top: 14px; padding: 8px 20px;
+      font: 13px sans-serif; color: #ffb0b0;
+      border: 1px solid rgba(255,150,150,0.4); border-radius: 6px;
+    }
+    #new-game:hover { background: rgba(255,100,100,0.2); }
     kbd {
       background: rgba(255,255,255,0.15); border-radius: 4px;
       padding: 1px 7px; font-family: monospace;
@@ -105,6 +111,7 @@
       <kbd>1~9</kbd> / 마우스 휠 : 블록 선택 &nbsp;·&nbsp; <kbd>ESC</kbd> 일시정지
     </p>
     <div class="start">클릭해서 시작</div>
+    <div id="new-game">🗑 새 게임 (저장 삭제)</div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

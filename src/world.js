@@ -37,6 +37,8 @@ export class World {
     this.chunks = new Map();   // "cx,cz" -> Uint8Array
     this.meshes = new Map();   // "cx,cz" -> { solid, trans }
     this.dirty = new Set();
+    this.edits = new Map();    // "cx,cz" -> Map("lx,y,lz" -> id) : 사용자 수정 내역
+    this.editsChanged = false;
     this.noise = createNoise2D(seed);
     this.heightCache = new Map();
 
@@ -114,6 +116,14 @@ export class World {
         for (let y = h + 1; y <= top; y++) data[idx(lx, y, lz)] = BLOCK.LOG;
       }
     }
+    // 저장된 사용자 수정 내역 재적용
+    const edits = this.edits.get(this.key(cx, cz));
+    if (edits) {
+      for (const [k, id] of edits) {
+        const [lx, y, lz] = k.split(',').map(Number);
+        data[idx(lx, y, lz)] = id;
+      }
+    }
     return data;
   }
 
@@ -148,6 +158,10 @@ export class World {
     const chunk = this.chunks.get(this.key(cx, cz));
     const lx = gx & 15, lz = gz & 15;
     chunk[idx(lx, gy, lz)] = id;
+    const ck = this.key(cx, cz);
+    if (!this.edits.has(ck)) this.edits.set(ck, new Map());
+    this.edits.get(ck).set(`${lx},${gy},${lz}`, id);
+    this.editsChanged = true;
     this.dirty.add(this.key(cx, cz));
     if (lx === 0) this.dirty.add(this.key(cx - 1, cz));
     if (lx === 15) this.dirty.add(this.key(cx + 1, cz));
@@ -283,6 +297,19 @@ export class World {
       if (dx * dx + dz * dz > (radius + 2) * (radius + 2)) {
         this.disposeChunkMesh(cx, cz);
       }
+    }
+  }
+
+  exportEdits() {
+    const out = {};
+    for (const [ck, m] of this.edits) out[ck] = Object.fromEntries(m);
+    return out;
+  }
+
+  loadEdits(obj) {
+    this.edits.clear();
+    for (const [ck, m] of Object.entries(obj || {})) {
+      this.edits.set(ck, new Map(Object.entries(m).map(([k, v]) => [k, v | 0])));
     }
   }
 
