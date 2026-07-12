@@ -127,8 +127,8 @@ export class Player {
     // 입력 → 이동 방향 (yaw 기준)
     let fx = 0, fz = 0;
     if (this.enabled) {
-      if (this.keys.has('KeyW')) fz += 1;
-      if (this.keys.has('KeyS')) fz -= 1;
+      if (this.keys.has('KeyW')) fz -= 1; // 시선(head) 방향으로 전진
+      if (this.keys.has('KeyS')) fz += 1;
       if (this.keys.has('KeyA')) fx -= 1;
       if (this.keys.has('KeyD')) fx += 1;
     }
@@ -136,9 +136,10 @@ export class Player {
     let dx = 0, dz = 0;
     if (len > 0) {
       fx /= len; fz /= len;
+      // 입력 벡터를 yaw만큼 Y축 회전 → 항상 시선(head) 기준으로 이동
       const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-      dx = fx * cos - fz * sin;
-      dz = fx * sin + fz * cos;
+      dx = fx * cos + fz * sin;
+      dz = -fx * sin + fz * cos;
     }
 
     // 수평 속도는 목표치로 감쇠 보간
