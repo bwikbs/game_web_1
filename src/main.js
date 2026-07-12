@@ -4,6 +4,7 @@ import { Player } from './player.js';
 import { BLOCK, BLOCK_DEFS, tileIconURL } from './blocks.js';
 import { loadSave, writeSave, clearSave } from './storage.js';
 import { Sky } from './sky.js';
+import { sfx } from './audio.js';
 
 const REACH = 6;
 const RADIUS = 5;
@@ -116,7 +117,10 @@ window.addEventListener('beforeunload', persist);
 
 // ── 포인터락 / 오버레이 ─────────────────────────────────
 const overlay = document.getElementById('overlay');
-overlay.addEventListener('click', () => renderer.domElement.requestPointerLock());
+overlay.addEventListener('click', () => {
+  sfx.unlock();
+  renderer.domElement.requestPointerLock();
+});
 document.getElementById('new-game').addEventListener('click', (e) => {
   e.stopPropagation();
   if (confirm('저장된 월드를 삭제하고 새로 시작할까요?')) {
@@ -143,11 +147,13 @@ document.addEventListener('mousedown', (e) => {
   if (!hit) return;
   if (e.button === 0) {
     world.setBlock(hit.x, hit.y, hit.z, BLOCK.AIR);
+    sfx.break();
   } else if (e.button === 2) {
     const bx = hit.x + hit.nx, by = hit.y + hit.ny, bz = hit.z + hit.nz;
     const cur = world.getBlock(bx, by, bz);
     if ((cur === BLOCK.AIR || cur === BLOCK.WATER) && !player.intersectsBlock(bx, by, bz)) {
       world.setBlock(bx, by, bz, HOTBAR[hotbarIdx]);
+      sfx.place();
     }
   }
 });
@@ -159,7 +165,29 @@ const fpsEl = document.getElementById('fps');
 let frames = 0, fpsTimer = 0;
 
 // ── 게임 루프 ────────────────────────────────────────────
-window.__game = { world, player, camera, sky };
+window.__game = { world, player, camera, sky, sfx };
+
+// 발소리/착지/입수 사운드 상태
+const prevPos = player.pos.clone();
+let prevInWater = false;
+let prevOnGround = false;
+let walkAcc = 0;
+
+function updateSfx() {
+  const dxz = Math.hypot(player.pos.x - prevPos.x, player.pos.z - prevPos.z);
+  if (player.onGround) {
+    walkAcc += dxz;
+    if (walkAcc > 2.2) { walkAcc = 0; sfx.step(); }
+    if (!prevOnGround) sfx.step(); // 착지
+  } else if (prevOnGround && player.vel.y > 5) {
+    sfx.jump();
+  }
+  const inW = player.inWater();
+  if (inW && !prevInWater) sfx.splash();
+  prevInWater = inW;
+  prevOnGround = player.onGround;
+  prevPos.copy(player.pos);
+}
 
 const clock = new THREE.Clock();
 function loop() {
@@ -167,6 +195,7 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   player.update(dt);
+  updateSfx();
   world.update(player.pos.x, player.pos.z, RADIUS);
 
   const brightness = sky.update(dt, camera);
