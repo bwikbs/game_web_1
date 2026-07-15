@@ -37,7 +37,8 @@ export class World {
     this.chunks = new Map();   // "cx,cz" -> Uint8Array
     this.meshes = new Map();   // "cx,cz" -> { solid, trans }
     this.dirty = new Set();
-    this.edits = new Map();    // "cx,cz" -> Map("lx,y,lz" -> id) : 사용자 수정 내역
+    this.edits = new Map();    // "cx,cz" -> Map("lx,y,lz" -> id) : 내 수정 내역 (세이브 대상)
+    this.netEdits = new Map(); // "cx,cz" -> Map("lx,y,lz" -> id) : 원격 수정 내역 (세이브 제외)
     this.editsChanged = false;
     this.noise = createNoise2D(seed);
     this.caveNoiseA = createNoise3D(seed + 101);
@@ -127,9 +128,10 @@ export class World {
         for (let y = h + 1; y <= top; y++) data[idx(lx, y, lz)] = BLOCK.LOG;
       }
     }
-    // 저장된 사용자 수정 내역 재적용
-    const edits = this.edits.get(this.key(cx, cz));
-    if (edits) {
+    // 저장된 수정 내역 재적용 (내 것 + 원격, 좌표별로 한쪽에만 존재)
+    for (const map of [this.edits, this.netEdits]) {
+      const edits = map.get(this.key(cx, cz));
+      if (!edits) continue;
       for (const [k, id] of edits) {
         const [lx, y, lz] = k.split(',').map(Number);
         data[idx(lx, y, lz)] = id;
@@ -162,18 +164,26 @@ export class World {
     return d.solid && !d.transparent;
   }
 
-  setBlock(gx, gy, gz, id) {
+  setBlock(gx, gy, gz, id, remote = false) {
     if (gy < 0 || gy >= HEIGHT) return;
     const cx = gx >> 4, cz = gz >> 4;
-    this.ensureData(cx, cz);
-    const chunk = this.chunks.get(this.key(cx, cz));
-    const lx = gx & 15, lz = gz & 15;
-    chunk[idx(lx, gy, lz)] = id;
     const ck = this.key(cx, cz);
-    if (!this.edits.has(ck)) this.edits.set(ck, new Map());
-    this.edits.get(ck).set(`${lx},${gy},${lz}`, id);
-    this.editsChanged = true;
-    this.dirty.add(this.key(cx, cz));
+    const lx = gx & 15, lz = gz & 15;
+    const lk = `${lx},${gy},${lz}`;
+
+    // 좌표별 last-write-wins: 반대편 기록 제거 후 해당 맵에 기록
+    const [into, other] = remote
+      ? [this.netEdits, this.edits] : [this.edits, this.netEdits];
+    other.get(ck)?.delete(lk);
+    if (!into.has(ck)) into.set(ck, new Map());
+    into.get(ck).set(lk, id);
+    if (!remote) this.editsChanged = true;
+
+    // 미로드 청크는 기록만 (생성 시 재적용) → 원격 edits 일괄 수신 시 히치 방지
+    const chunk = this.chunks.get(ck);
+    if (!chunk) return;
+    chunk[idx(lx, gy, lz)] = id;
+    this.dirty.add(ck);
     if (lx === 0) this.dirty.add(this.key(cx - 1, cz));
     if (lx === 15) this.dirty.add(this.key(cx + 1, cz));
     if (lz === 0) this.dirty.add(this.key(cx, cz - 1));
@@ -278,12 +288,16 @@ export class World {
   update(px, pz, radius = 5) {
     const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4;
 
-    // 수정된 청크는 즉시 재메싱
+    // 수정된 청크 재메싱 (메시가 있는 청크만, 프레임당 예산 제한)
+    let remeshBudget = 6;
     for (const k of this.dirty) {
+      if (!this.meshes.has(k)) { this.dirty.delete(k); continue; }
+      if (remeshBudget <= 0) break;
       const [cx, cz] = k.split(',').map(Number);
-      if (this.meshes.has(k) || this.chunks.has(k)) this.buildChunkMesh(cx, cz);
+      this.buildChunkMesh(cx, cz);
+      this.dirty.delete(k);
+      remeshBudget--;
     }
-    this.dirty.clear();
 
     // 필요한 청크를 거리순으로 정렬해 예산 내 생성
     let meshBudget = 2;
@@ -329,9 +343,10 @@ export class World {
     let x = Math.floor(origin.x), y = Math.floor(origin.y), z = Math.floor(origin.z);
     const stepX = Math.sign(dir.x), stepY = Math.sign(dir.y), stepZ = Math.sign(dir.z);
     const tDeltaX = Math.abs(1 / dir.x), tDeltaY = Math.abs(1 / dir.y), tDeltaZ = Math.abs(1 / dir.z);
-    let tMaxX = stepX > 0 ? (x + 1 - origin.x) * tDeltaX : (origin.x - x) * tDeltaX;
-    let tMaxY = stepY > 0 ? (y + 1 - origin.y) * tDeltaY : (origin.y - y) * tDeltaY;
-    let tMaxZ = stepZ > 0 ? (z + 1 - origin.z) * tDeltaZ : (origin.z - z) * tDeltaZ;
+    // step이 0인 축은 Infinity 고정 (0 * Infinity = NaN 방지)
+    let tMaxX = stepX > 0 ? (x + 1 - origin.x) * tDeltaX : stepX < 0 ? (origin.x - x) * tDeltaX : Infinity;
+    let tMaxY = stepY > 0 ? (y + 1 - origin.y) * tDeltaY : stepY < 0 ? (origin.y - y) * tDeltaY : Infinity;
+    let tMaxZ = stepZ > 0 ? (z + 1 - origin.z) * tDeltaZ : stepZ < 0 ? (origin.z - z) * tDeltaZ : Infinity;
     let normal = [0, 0, 0];
     let t = 0;
 

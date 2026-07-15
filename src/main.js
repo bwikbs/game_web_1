@@ -101,9 +101,14 @@ document.addEventListener('wheel', (e) => {
 });
 
 // ── 자동 저장 ────────────────────────────────────────────
+let editsCache = null;
 function persist() {
+  if (world.editsChanged || !editsCache) {
+    editsCache = world.exportEdits();
+    world.editsChanged = false;
+  }
   writeSave({
-    edits: world.exportEdits(),
+    edits: editsCache,
     player: {
       x: player.pos.x, y: player.pos.y, z: player.pos.z,
       yaw: player.yaw, pitch: player.pitch,
@@ -111,7 +116,6 @@ function persist() {
     hotbar: hotbarIdx,
     time: sky.time,
   });
-  world.editsChanged = false;
 }
 setInterval(persist, 5000);
 window.addEventListener('beforeunload', persist);
