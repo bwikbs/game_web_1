@@ -65,7 +65,7 @@ export class Net {
       case 'init':
         for (const [k, b] of Object.entries(msg.edits || {})) {
           const [x, y, z] = k.split(',').map(Number);
-          this.world.setBlock(x, y, z, b);
+          this.world.setBlock(x, y, z, b, true);
         }
         for (const p of msg.players || []) this.upsertAvatar(p.id, p);
         break;
@@ -76,7 +76,7 @@ export class Net {
         this.upsertAvatar(msg.id, msg);
         break;
       case 'block':
-        this.world.setBlock(msg.x, msg.y, msg.z, msg.b);
+        this.world.setBlock(msg.x, msg.y, msg.z, msg.b, true);
         break;
       case 'leave': {
         const a = this.avatars.get(msg.id);

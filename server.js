@@ -3,6 +3,9 @@
 import { WebSocketServer } from 'ws';
 
 const PORT = 8081;
+const WORLD_HEIGHT = 64;   // src/world.js HEIGHT와 동일
+const MAX_BLOCK_ID = 12;   // src/blocks.js BLOCK 최대값과 동일
+const MAX_EDITS = 200000;  // 세션 edits 상한 (무한 성장 방지)
 const wss = new WebSocketServer({ port: PORT });
 
 let nextId = 1;
@@ -35,11 +38,17 @@ wss.on('connection', (ws) => {
     let msg;
     try { msg = JSON.parse(buf); } catch { return; }
     if (msg.type === 'pos') {
+      if (![msg.x, msg.y, msg.z, msg.yaw].every(Number.isFinite)) return;
       const c = clients.get(id);
       if (c) c.state = { x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw };
       broadcast({ type: 'pos', id, x: msg.x, y: msg.y, z: msg.z, yaw: msg.yaw }, id);
     } else if (msg.type === 'block') {
-      edits.set(`${msg.x},${msg.y},${msg.z}`, msg.b);
+      if (![msg.x, msg.y, msg.z, msg.b].every(Number.isInteger)) return;
+      if (msg.y < 0 || msg.y >= WORLD_HEIGHT) return;
+      if (msg.b < 0 || msg.b > MAX_BLOCK_ID) return;
+      const k = `${msg.x},${msg.y},${msg.z}`;
+      if (edits.size >= MAX_EDITS && !edits.has(k)) return;
+      edits.set(k, msg.b);
       broadcast({ type: 'block', x: msg.x, y: msg.y, z: msg.z, b: msg.b }, id);
     }
   });
